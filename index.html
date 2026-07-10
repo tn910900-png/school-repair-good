@@ -528,20 +528,27 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- 安全配置與解析 ---
-        let firebaseConfig;
+        // --- 安全環境配置檢索 ---
+        // 對於 undefined 的全域變數採用嚴格檢驗，防範於獨立網域託管時發生的當機
+        let rawFirebaseConfig = null;
         if (typeof __firebase_config !== 'undefined') {
-            if (typeof __firebase_config === 'string') {
+            rawFirebaseConfig = __firebase_config;
+        }
+
+        let firebaseConfig;
+        if (rawFirebaseConfig) {
+            if (typeof rawFirebaseConfig === 'string') {
                 try {
-                    firebaseConfig = JSON.parse(__firebase_config);
+                    firebaseConfig = JSON.parse(rawFirebaseConfig);
                 } catch (e) {
-                    console.error("解析內嵌 __firebase_config 失敗，將降級為預設配置：", e);
+                    console.error("解析內嵌 __firebase_config 失敗，採用 fallback 配置：", e);
                 }
             } else {
-                firebaseConfig = __firebase_config;
+                firebaseConfig = rawFirebaseConfig;
             }
         }
 
+        // 當獨立部署在 GitHub Pages 時，必定會走到這個預設 Fallback 分支
         if (!firebaseConfig) {
             firebaseConfig = {
                 apiKey: "AIzaSyCKtpkis3onjOfK7sBZNroi3TeVWGLslig",
@@ -555,7 +562,10 @@
         }
 
         // 取得動態應用程式 ID
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        let appId = 'school-repair-fd3b0';
+        if (typeof __app_id !== 'undefined' && __app_id) {
+            appId = __app_id;
+        }
         
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -600,19 +610,24 @@
 
         // --- Rule 3 核心驗證同步啟動鏈 ---
         async function startSystem() {
+            let initialAuthToken = null;
+            if (typeof __initial_auth_token !== 'undefined') {
+                initialAuthToken = __initial_auth_token;
+            }
+
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
                 } else {
                     await signInAnonymously(auth);
                 }
             } catch (error) {
-                console.warn("自訂憑證或認證不符，降級為匿名認證流程：", error);
+                console.warn("自訂憑證登入不符，嘗試以匿名方式驗證連線：", error);
                 try {
                     await signInAnonymously(auth);
                 } catch (fallbackError) {
-                    console.error("Firebase 驗證完全失敗，雲端資料庫將受限：", fallbackError);
-                    showToast("認證登入失敗，請確認網路與權限設定。", "alert-octagon");
+                    console.error("Firebase 驗證完全失敗：", fallbackError);
+                    showToast("⚠️ Firebase 匿名登入失敗！請確認 Firebase 控制台已啟用 Anonymous 驗證模式。", "alert-triangle");
                 }
             }
 
@@ -623,19 +638,19 @@
                 if (user) {
                     if (indicator) {
                         indicator.className = "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800";
-                        indicator.innerHTML = `<span class="w-2 h-2 mr-1 rounded-full bg-emerald-500 animate-pulse"></span><span>雲端同步中</span>`;
+                        indicator.innerHTML = `<span class="w-2 h-2 mr-1 rounded-full bg-emerald-500 animate-pulse"></span><span>雲端即時同步中</span>`;
                     }
                     setupFirestoreListeners();
                 } else {
                     if (indicator) {
                         indicator.className = "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800";
-                        indicator.innerHTML = `<span class="w-2 h-2 mr-1 rounded-full bg-red-500 animate-pulse"></span><span>未登入</span>`;
+                        indicator.innerHTML = `<span class="w-2 h-2 mr-1 rounded-full bg-red-500 animate-pulse"></span><span>未登入 / 離線</span>`;
                     }
                 }
             });
         }
 
-        // 立即啟動
+        // 啟動系統
         startSystem();
 
         // 頁面初次 DOM 渲染輔助
@@ -1576,7 +1591,7 @@ ${repairData.description}
             toastTimeout = setTimeout(() => {
                 toast.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
                 toast.classList.remove('translate-y-0', 'opacity-100');
-            }, 4500);
+            }, 4550);
         }
 
         // 全域功能函數註冊
