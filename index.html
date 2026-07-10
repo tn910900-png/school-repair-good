@@ -528,10 +528,22 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 1. 初始化 Firebase 設定（優先採用系統動態提供的參數，保障沙盒預覽安全與權限匹配）
-        const firebaseConfig = typeof __firebase_config !== 'undefined'
-            ? JSON.parse(__firebase_config)
-            : {
+        // --- 安全配置與解析 ---
+        let firebaseConfig;
+        if (typeof __firebase_config !== 'undefined') {
+            if (typeof __firebase_config === 'string') {
+                try {
+                    firebaseConfig = JSON.parse(__firebase_config);
+                } catch (e) {
+                    console.error("解析內嵌 __firebase_config 失敗，將降級為預設配置：", e);
+                }
+            } else {
+                firebaseConfig = __firebase_config;
+            }
+        }
+
+        if (!firebaseConfig) {
+            firebaseConfig = {
                 apiKey: "AIzaSyCKtpkis3onjOfK7sBZNroi3TeVWGLslig",
                 authDomain: "school-repair-fd3b0.firebaseapp.com",
                 projectId: "school-repair-fd3b0",
@@ -540,15 +552,16 @@
                 appId: "1:946583950136:web:e8ca6cc72ff38807a727cd",
                 measurementId: "G-2970R7J57N"
             };
+        }
 
-        // 取得動態應用程式 ID (防範安全權限遺失錯誤)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'school-repair-fd3b0';
+        // 取得動態應用程式 ID
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // 2. 初始化本地變數
+        // 初始化本地變數
         let repairs = [];
         let semesters = [];
         let locations = [];
@@ -566,8 +579,27 @@
             { id: "REP003", reporter: "陳主任", contact: "分機 #201", semester: "114學年度 第一學期", category: "資訊設備類", location: "行政大樓", detailLocation: "三樓大會議室", description: "單槍投影機開機後，顯示畫面嚴重泛黃且偏暗，無法看清投影簡報。", urgency: "普通", status: "已完成", cost: 3500, date: "2026-06-15 14:00", note: "已更換投影機內部全新燈泡，顯示色彩已恢復正常色彩。" }
         ];
 
-        // 3. 認證登入 (安全與合規性修正：先非同步登入成功，才接續資料庫讀取)
-        async function initAuth() {
+        // --- 防沙盒跨域阻擋 sessionStorage 安全快取機制 ---
+        let memoryAdminLogged = false;
+        function setAdminLoggedIn(val) {
+            memoryAdminLogged = val;
+            try {
+                sessionStorage.setItem('admin_logged_in', val ? 'true' : 'false');
+            } catch (e) {
+                console.warn("當前沙盒阻擋了 sessionStorage，已改用記憶體快取：", e);
+            }
+        }
+
+        function getAdminLoggedIn() {
+            try {
+                return sessionStorage.getItem('admin_logged_in') === 'true' || memoryAdminLogged;
+            } catch (e) {
+                return memoryAdminLogged;
+            }
+        }
+
+        // --- Rule 3 核心驗證同步啟動鏈 ---
+        async function startSystem() {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
@@ -575,39 +607,47 @@
                     await signInAnonymously(auth);
                 }
             } catch (error) {
-                console.warn("自訂憑證不符，安全降級改用匿名登入：", error);
+                console.warn("自訂憑證或認證不符，降級為匿名認證流程：", error);
                 try {
                     await signInAnonymously(auth);
                 } catch (fallbackError) {
-                    console.error("Firebase 認證完全失敗：", fallbackError);
-                    showToast("連線異常，請檢查網路狀態。", "alert-octagon");
+                    console.error("Firebase 驗證完全失敗，雲端資料庫將受限：", fallbackError);
+                    showToast("認證登入失敗，請確認網路與權限設定。", "alert-octagon");
                 }
             }
+
+            // 註冊認證監聽器並正式激活資料庫讀寫
+            onAuthStateChanged(auth, (u) => {
+                user = u;
+                const indicator = document.getElementById('cloud-status');
+                if (user) {
+                    if (indicator) {
+                        indicator.className = "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800";
+                        indicator.innerHTML = `<span class="w-2 h-2 mr-1 rounded-full bg-emerald-500 animate-pulse"></span><span>雲端同步中</span>`;
+                    }
+                    setupFirestoreListeners();
+                } else {
+                    if (indicator) {
+                        indicator.className = "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800";
+                        indicator.innerHTML = `<span class="w-2 h-2 mr-1 rounded-full bg-red-500 animate-pulse"></span><span>未登入</span>`;
+                    }
+                }
+            });
         }
 
-        window.onload = function() {
-            initAuth();
-            lucide.createIcons();
-        };
+        // 立即啟動
+        startSystem();
 
-        // 監聽登入狀態改變並綁定資料庫
-        onAuthStateChanged(auth, (u) => {
-            user = u;
-            if (user) {
-                const indicator = document.getElementById('cloud-status');
-                if (indicator) {
-                    indicator.className = "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800";
-                    indicator.innerHTML = `<span class="w-2 h-2 mr-1 rounded-full bg-emerald-500 animate-pulse"></span><span>雲端同步中</span>`;
-                }
-                setupFirestoreListeners();
-            }
+        // 頁面初次 DOM 渲染輔助
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
         });
 
-        // 4. 即時監聽資料庫設定 (加入使用者認證安全守衛)
+        // 監聽並加載 Firestore 雲端資料 (落實 Rule 1 & Rule 3 安全守衛)
         function setupFirestoreListeners() {
             if (!user) return;
 
-            // A. 監聽系統配置（含學期、地點、管理者帳密與郵件通知設定）
+            // A. 系統設定
             const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global');
             onSnapshot(configDocRef, (docSnap) => {
                 if (docSnap.exists()) {
@@ -617,14 +657,13 @@
                     adminSettings = data.adminSettings || { username: "admin", password: "admin1234" };
                     notificationSettings = data.notificationSettings || { adminEmail: "admin@school.edu.tw", emailEngine: "mock", emailKey: "" };
                 } else {
-                    // 若雲端無設定檔，初始化一筆完整的全域設定檔
                     const initialConfig = {
                         semesters: [...DEFAULT_SEMESTERS],
                         locations: [...DEFAULT_LOCATIONS],
                         adminSettings: { username: "admin", password: "admin1234" },
                         notificationSettings: { adminEmail: "admin@school.edu.tw", emailEngine: "mock", emailKey: "" }
                     };
-                    setDoc(configDocRef, initialConfig);
+                    setDoc(configDocRef, initialConfig, { merge: true });
                     semesters = initialConfig.semesters;
                     locations = initialConfig.locations;
                     adminSettings = initialConfig.adminSettings;
@@ -634,10 +673,10 @@
                 syncNotificationFormValues();
                 renderParametersLists();
             }, (error) => {
-                console.error("監聽系統設定失敗：", error);
+                console.error("監聽全域配置失敗：", error);
             });
 
-            // B. 監聽所有報修案件 (最新在最前)
+            // B. 報修清單監聽 (採最簡單的單一 Collection，再行排序，落實 Rule 2)
             const repairsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'repairs');
             onSnapshot(repairsColRef, (querySnapshot) => {
                 const tempRepairs = [];
@@ -650,10 +689,10 @@
                 filterRepairs();
                 renderAdminDashboard();
             }, (error) => {
-                console.error("監聽報修清單失敗：", error);
+                console.error("監聽報修資訊失敗：", error);
             });
 
-            // C. 監聽自動郵件日誌 (依時間新到舊)
+            // C. 郵件日誌監聽
             const logsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'email_logs');
             onSnapshot(logsColRef, (querySnapshot) => {
                 const tempLogs = [];
@@ -664,11 +703,11 @@
                 emailLogs = tempLogs;
                 renderEmailLogs();
             }, (error) => {
-                console.error("監聽郵件日誌失敗：", error);
+                console.error("監聽信件日誌失敗：", error);
             });
         }
 
-        // 動態更新表單下拉選單
+        // 動態填充下拉選單
         function updateFormDropdowns() {
             const formSemSelect = document.getElementById('form-semester');
             if (formSemSelect) {
@@ -719,7 +758,6 @@
             }
         }
 
-        // 同步通知表單設定的輸入值
         function syncNotificationFormValues() {
             const emailInput = document.getElementById('setting-admin-email');
             const engineSelect = document.getElementById('setting-email-engine');
@@ -732,7 +770,6 @@
             toggleEmailKeyInput();
         }
 
-        // 切換密鑰輸入欄位顯示狀態
         function toggleEmailKeyInput() {
             const engine = document.getElementById('setting-email-engine')?.value;
             const container = document.getElementById('email-key-container');
@@ -760,8 +797,7 @@
             activeBtn.classList.add('bg-indigo-800', 'text-white', 'shadow-inner');
 
             if (tabId === 'admin') {
-                const isLogged = sessionStorage.getItem('admin_logged_in');
-                if (isLogged === 'true') {
+                if (getAdminLoggedIn()) {
                     showAdminDashboard();
                 } else {
                     showAdminLoginCard();
@@ -769,11 +805,11 @@
             }
         }
 
-        // 送出報修單，並在背景自動發送郵件通知
+        // 送出報修單並發送通知
         async function handleFormSubmit(event) {
             event.preventDefault();
             if (!user) {
-                showToast("系統未就緒，請稍候重試...", "alert-circle");
+                showToast("系統登入認證中，請稍候重試...", "alert-circle");
                 return;
             }
 
@@ -806,29 +842,28 @@
             };
 
             try {
-                // 1. 寫入報修案件至 Firebase
                 const repairsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'repairs');
                 await addDoc(repairsColRef, newRepair);
 
                 document.getElementById('repair-form').reset();
                 updateFormDropdowns();
 
-                // 2. 觸發信件寄送機制通知管理者
+                // 異步發送郵件日誌設定
                 triggerEmailNotification(newRepair);
 
-                showToast("🎉 報修單已成功送出！系統已自動發信通知管理者，單號：" + id, "check-circle");
+                showToast(`🎉 報修成功！自動通知信已發出。單號：${id}`, "check-circle");
                 
                 setTimeout(() => {
                     switchTab('search');
                     filterRepairs();
                 }, 800);
             } catch (err) {
-                console.error("寫入雲端失敗：", err);
-                showToast("送出失敗，請確認網路狀態。", "alert-triangle");
+                console.error("報修寫入失敗：", err);
+                showToast("新增失敗，錯誤資訊：" + err.message, "alert-triangle");
             }
         }
 
-        // 自動郵件發送引擎
+        // 真實與模擬自動通知郵件核心
         async function triggerEmailNotification(repairData) {
             const adminEmail = notificationSettings.adminEmail || "admin@school.edu.tw";
             const engine = notificationSettings.emailEngine || "mock";
@@ -881,14 +916,12 @@ ${repairData.description}
                     }
                 } catch (err) {
                     status = "發送失敗";
-                    details = `網路發送異常：${err.message}`;
+                    details = `網絡發送異常：${err.message}`;
                 }
             } else {
-                // 模擬模式
                 details = `已建立虛擬寄信排程，信件已投遞至模擬伺服器收信匣。`;
             }
 
-            // 將郵件發送紀錄同步存入雲端
             try {
                 const logsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'email_logs');
                 await addDoc(logsColRef, {
@@ -902,11 +935,11 @@ ${repairData.description}
                     details
                 });
             } catch (err) {
-                console.error("同步儲存信件日誌失敗：", err);
+                console.error("備份郵件通知日誌失敗：", err);
             }
         }
 
-        // 前台案件查詢篩選
+        // 案件前端關鍵字與標籤過濾
         function filterRepairs() {
             const searchInput = document.getElementById('search-input');
             const searchKeyword = searchInput ? searchInput.value.toLowerCase() : "";
@@ -930,7 +963,7 @@ ${repairData.description}
             renderRepairCards(filtered);
         }
 
-        // 渲染前台卡片
+        // 渲染前端清單卡片
         function renderRepairCards(list) {
             const container = document.getElementById('repair-list-container');
             if (!container) return;
@@ -1024,14 +1057,14 @@ ${repairData.description}
             lucide.createIcons();
         }
 
-        // 後台管理者登入
+        // 管理者登錄
         function handleAdminLogin(event) {
             event.preventDefault();
             const userIn = document.getElementById('login-username').value.trim();
             const passIn = document.getElementById('login-password').value.trim();
 
             if (userIn === adminSettings.username && passIn === adminSettings.password) {
-                sessionStorage.setItem('admin_logged_in', 'true');
+                setAdminLoggedIn(true);
                 showAdminDashboard();
                 showToast("解鎖登入成功！歡迎使用雲端管理主控台。", "unlock");
             } else {
@@ -1040,7 +1073,7 @@ ${repairData.description}
         }
 
         function handleAdminLogout() {
-            sessionStorage.removeItem('admin_logged_in');
+            setAdminLoggedIn(false);
             showAdminLoginCard();
             showToast("管理系統已登出，感謝您的使用。", "lock");
         }
@@ -1058,7 +1091,7 @@ ${repairData.description}
             renderAdminDashboard();
         }
 
-        // 渲染後台儀表板
+        // 後台統計與狀態渲染
         function renderAdminDashboard() {
             let total = repairs.length;
             let pending = repairs.filter(r => r.status === '待處理').length;
@@ -1079,7 +1112,7 @@ ${repairData.description}
             renderAdminRepairs();
         }
 
-        // 渲染自動信件寄送日誌
+        // 信件通知日誌渲染
         function renderEmailLogs() {
             const container = document.getElementById('email-logs-container');
             if (!container) return;
@@ -1124,11 +1157,11 @@ ${repairData.description}
             lucide.createIcons();
         }
 
-        // 儲存管理者信箱通知設定
+        // 郵件設定儲存
         async function saveNotificationSettings(event) {
             event.preventDefault();
             if (!user) {
-                showToast("系統未就緒，請登入或稍候再試...", "alert-circle");
+                showToast("系統登入尚未就緒，請重試...", "alert-circle");
                 return;
             }
             const email = document.getElementById('setting-admin-email').value.trim();
@@ -1137,7 +1170,6 @@ ${repairData.description}
 
             try {
                 const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global');
-                // 採用安全的 setDoc + merge 機制，防範新環境下 doc 不存在造成的寫入失敗
                 await setDoc(configDocRef, {
                     notificationSettings: {
                         adminEmail: email,
@@ -1148,11 +1180,11 @@ ${repairData.description}
                 showToast("通知設定已成功儲存至雲端並套用！", "check-circle");
             } catch (err) {
                 console.error("更新通知設定失敗：", err);
-                showToast("通知設定儲存失敗：" + err.message, "alert-triangle");
+                showToast("儲存失敗：" + err.message, "alert-triangle");
             }
         }
 
-        // 渲染參數清單
+        // 參數清單管理
         function renderParametersLists() {
             const semContainer = document.getElementById('semesters-list-container');
             if (semContainer) {
@@ -1189,7 +1221,7 @@ ${repairData.description}
             lucide.createIcons();
         }
 
-        // 新增學期到雲端
+        // 新增學期
         async function addSemester() {
             if (!user) {
                 showToast("系統未就緒，請登入或稍候再試...", "alert-circle");
@@ -1218,7 +1250,7 @@ ${repairData.description}
             }
         }
 
-        // 刪除雲端學期
+        // 刪除學期
         function deleteSemester(index) {
             if (!user) {
                 showToast("系統未就緒，請登入或稍候再試...", "alert-circle");
@@ -1244,7 +1276,7 @@ ${repairData.description}
             });
         }
 
-        // 新增報修地點到雲端
+        // 新增地點
         async function addLocation() {
             if (!user) {
                 showToast("系統未就緒，請登入或稍候再試...", "alert-circle");
@@ -1273,7 +1305,7 @@ ${repairData.description}
             }
         }
 
-        // 刪除雲端報修地點
+        // 刪除地點
         function deleteLocation(index) {
             if (!user) {
                 showToast("系統未就緒，請登入或稍候再試...", "alert-circle");
@@ -1299,7 +1331,7 @@ ${repairData.description}
             });
         }
 
-        // 渲染後台案件表格
+        // 後台表格渲染
         function renderAdminRepairs() {
             const filterElement = document.getElementById('admin-filter-status');
             const filterVal = filterElement ? filterElement.value : "";
@@ -1367,7 +1399,7 @@ ${repairData.description}
             lucide.createIcons();
         }
 
-        // 開啟狀態變更與金額設定視窗
+        // 開啟狀態變更彈窗
         function openStatusModal(id) {
             const item = repairs.find(r => r.id === id);
             if (!item) return;
@@ -1385,9 +1417,12 @@ ${repairData.description}
             document.getElementById('status-modal').classList.add('hidden');
         }
 
-        // 儲存進度與費用至雲端
+        // 儲存狀態變更
         async function saveStatusChanges() {
-            if (!user) return;
+            if (!user) {
+                showToast("系統未就緒，無法儲存設定。", "alert-circle");
+                return;
+            }
             const id = document.getElementById('modal-repair-id').value;
             const status = document.getElementById('modal-status').value;
             const cost = Number(document.getElementById('modal-cost').value) || 0;
@@ -1406,13 +1441,15 @@ ${repairData.description}
                     closeStatusModal();
                     showToast(`已成功同步儲存單號 ${id} 的進度與經費設定！`, "check-circle");
                 } catch (err) {
-                    console.error(err);
-                    showToast("更新失敗，請再次確認網路。", "alert-triangle");
+                    console.error("更新故障狀況失敗：", err);
+                    showToast("更新失敗，錯誤資訊：" + err.message, "alert-triangle");
                 }
+            } else {
+                showToast("找不到對應的案件標識（請點選重設展示資料初始化雲端案件）", "alert-circle");
             }
         }
 
-        // 管理者修改帳密
+        // 管理者修改密碼
         function openChangePasswordModal() {
             document.getElementById('new-admin-username').value = adminSettings.username;
             document.getElementById('new-admin-password').value = "";
@@ -1439,36 +1476,35 @@ ${repairData.description}
 
             try {
                 const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global');
-                // 採用 merge 機制確保此全局 config 被無痛合併
                 await setDoc(configDocRef, {
                     adminSettings: { username: newUsername, password: newPassword }
                 }, { merge: true });
 
                 closeChangePasswordModal();
-                showToast("管理者帳號與密碼修改成功！新設定已儲存至雲端並套用。", "shield-check");
+                showToast("管理者帳號與密碼修改成功！新設定已儲存並生效。", "shield-check");
             } catch (err) {
                 console.error(err);
-                showToast("新密碼儲存失敗：" + err.message, "alert-triangle");
+                showToast("儲存失敗：" + err.message, "alert-triangle");
             }
         }
 
-        // 重置雲端資料庫展示資料
+        // 還原與清除測試資料
         function triggerResetDemo() {
             if (!user) return;
             showConfirmModal("確認要重置雲端資料庫嗎？這將會覆蓋與還原現有的所有報修、學期、大樓及郵件發送紀錄！", async () => {
                 try {
                     showToast("正在重置雲端資料，請稍候...", "refresh-cw");
 
-                    // 1. 還原全域配置檔案
+                    // 1. 還原設定檔
                     const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global');
                     await setDoc(configDocRef, {
                         semesters: [...DEFAULT_SEMESTERS],
                         locations: [...DEFAULT_LOCATIONS],
                         adminSettings: { username: "admin", password: "admin1234" },
                         notificationSettings: { adminEmail: "admin@school.edu.tw", emailEngine: "mock", emailKey: "" }
-                    });
+                    }, { merge: true });
 
-                    // 2. 清空現有的 repairs 紀錄
+                    // 2. 移除目前所有案件
                     for (const item of repairs) {
                         if (item.docId) {
                             const dRef = doc(db, 'artifacts', appId, 'public', 'data', 'repairs', item.docId);
@@ -1476,13 +1512,13 @@ ${repairData.description}
                         }
                     }
 
-                    // 3. 還原 DEMO 預設案件
+                    // 3. 還原基礎測試案件
                     const repairsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'repairs');
                     for (const d of DEMO_REPAIRS) {
                         await addDoc(repairsColRef, d);
                     }
 
-                    // 4. 清空現有信件紀錄
+                    // 4. 清除郵件紀錄
                     for (const log of emailLogs) {
                         if (log.docId) {
                             const dRef = doc(db, 'artifacts', appId, 'public', 'data', 'email_logs', log.docId);
@@ -1492,13 +1528,13 @@ ${repairData.description}
 
                     showToast("雲端資料庫已成功還原為乾淨的展示狀態！", "check-circle");
                 } catch (err) {
-                    console.error("重設雲端失敗：", err);
-                    showToast("重設失敗，請再次嘗試。", "alert-triangle");
+                    console.error("重設失敗：", err);
+                    showToast("重置失敗，錯誤：" + err.message, "alert-triangle");
                 }
             });
         }
 
-        // 自製確認 Modal 控制邏輯
+        // 自製 Confirm Modal
         let confirmAction = null;
         function showConfirmModal(message, onConfirm) {
             const modal = document.getElementById('confirm-modal');
@@ -1522,7 +1558,7 @@ ${repairData.description}
             closeConfirmModal();
         });
 
-        // 自製精美 Toast 提示
+        // Toast 訊息元件
         let toastTimeout;
         function showToast(message, iconName = "info") {
             const toast = document.getElementById('custom-toast');
@@ -1540,10 +1576,10 @@ ${repairData.description}
             toastTimeout = setTimeout(() => {
                 toast.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
                 toast.classList.remove('translate-y-0', 'opacity-100');
-            }, 4550);
+            }, 4500);
         }
 
-        // 全域函數曝光
+        // 全域功能函數註冊
         window.switchTab = switchTab;
         window.handleFormSubmit = handleFormSubmit;
         window.filterRepairs = filterRepairs;
