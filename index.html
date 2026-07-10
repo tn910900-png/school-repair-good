@@ -1,4 +1,4 @@
-      <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -1127,24 +1127,28 @@ ${repairData.description}
         // 儲存管理者信箱通知設定
         async function saveNotificationSettings(event) {
             event.preventDefault();
-            if (!user) return;
+            if (!user) {
+                showToast("系統未就緒，請登入或稍候再試...", "alert-circle");
+                return;
+            }
             const email = document.getElementById('setting-admin-email').value.trim();
             const engine = document.getElementById('setting-email-engine').value;
             const key = document.getElementById('setting-email-key').value.trim();
 
             try {
                 const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global');
-                await updateDoc(configDocRef, {
+                // 採用安全的 setDoc + merge 機制，防範新環境下 doc 不存在造成的寫入失敗
+                await setDoc(configDocRef, {
                     notificationSettings: {
                         adminEmail: email,
                         emailEngine: engine,
                         emailKey: key
                     }
-                });
+                }, { merge: true });
                 showToast("通知設定已成功儲存至雲端並套用！", "check-circle");
             } catch (err) {
                 console.error("更新通知設定失敗：", err);
-                showToast("通知設定儲存失敗，請重試。", "alert-triangle");
+                showToast("通知設定儲存失敗：" + err.message, "alert-triangle");
             }
         }
 
@@ -1187,7 +1191,10 @@ ${repairData.description}
 
         // 新增學期到雲端
         async function addSemester() {
-            if (!user) return;
+            if (!user) {
+                showToast("系統未就緒，請登入或稍候再試...", "alert-circle");
+                return;
+            }
             const input = document.getElementById('new-semester-input');
             const newSem = input.value.trim();
             if (!newSem) {
@@ -1202,18 +1209,21 @@ ${repairData.description}
             const updatedSemesters = [...semesters, newSem];
             try {
                 const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global');
-                await updateDoc(configDocRef, { semesters: updatedSemesters });
+                await setDoc(configDocRef, { semesters: updatedSemesters }, { merge: true });
                 input.value = '';
                 showToast(`已成功新增學期：${newSem}`, "check-circle");
             } catch (err) {
                 console.error(err);
-                showToast("新增失敗，請確認連線。", "alert-triangle");
+                showToast("新增失敗：" + err.message, "alert-triangle");
             }
         }
 
         // 刪除雲端學期
         function deleteSemester(index) {
-            if (!user) return;
+            if (!user) {
+                showToast("系統未就緒，請登入或稍候再試...", "alert-circle");
+                return;
+            }
             const targetSem = semesters[index];
             const isUsed = repairs.some(r => r.semester === targetSem);
             if (isUsed) {
@@ -1225,18 +1235,21 @@ ${repairData.description}
                 const updatedSemesters = semesters.filter((_, i) => i !== index);
                 try {
                     const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global');
-                    await updateDoc(configDocRef, { semesters: updatedSemesters });
+                    await setDoc(configDocRef, { semesters: updatedSemesters }, { merge: true });
                     showToast("已成功移除該學期設定。", "trash-2");
                 } catch (err) {
                     console.error(err);
-                    showToast("刪除失敗。", "alert-triangle");
+                    showToast("刪除失敗：" + err.message, "alert-triangle");
                 }
             });
         }
 
         // 新增報修地點到雲端
         async function addLocation() {
-            if (!user) return;
+            if (!user) {
+                showToast("系統未就緒，請登入或稍候再試...", "alert-circle");
+                return;
+            }
             const input = document.getElementById('new-location-input');
             const newLoc = input.value.trim();
             if (!newLoc) {
@@ -1251,18 +1264,21 @@ ${repairData.description}
             const updatedLocations = [...locations, newLoc];
             try {
                 const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global');
-                await updateDoc(configDocRef, { locations: updatedLocations });
+                await setDoc(configDocRef, { locations: updatedLocations }, { merge: true });
                 input.value = '';
                 showToast(`已成功新增地點：${newLoc}`, "check-circle");
             } catch (err) {
                 console.error(err);
-                showToast("新增地點失敗。", "alert-triangle");
+                showToast("新增地點失敗：" + err.message, "alert-triangle");
             }
         }
 
         // 刪除雲端報修地點
         function deleteLocation(index) {
-            if (!user) return;
+            if (!user) {
+                showToast("系統未就緒，請登入或稍候再試...", "alert-circle");
+                return;
+            }
             const targetLoc = locations[index];
             const isUsed = repairs.some(r => r.location === targetLoc);
             if (isUsed) {
@@ -1274,11 +1290,11 @@ ${repairData.description}
                 const updatedLocations = locations.filter((_, i) => i !== index);
                 try {
                     const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global');
-                    await updateDoc(configDocRef, { locations: updatedLocations });
+                    await setDoc(configDocRef, { locations: updatedLocations }, { merge: true });
                     showToast("已成功移除該地點大樓設定。", "trash-2");
                 } catch (err) {
                     console.error(err);
-                    showToast("刪除地點失敗。", "alert-triangle");
+                    showToast("刪除地點失敗：" + err.message, "alert-triangle");
                 }
             });
         }
@@ -1409,7 +1425,10 @@ ${repairData.description}
 
         async function handlePasswordChange(event) {
             event.preventDefault();
-            if (!user) return;
+            if (!user) {
+                showToast("系統未就緒，請登入或稍候再試...", "alert-circle");
+                return;
+            }
             const newUsername = document.getElementById('new-admin-username').value.trim();
             const newPassword = document.getElementById('new-admin-password').value.trim();
 
@@ -1420,15 +1439,16 @@ ${repairData.description}
 
             try {
                 const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global');
-                await updateDoc(configDocRef, {
+                // 採用 merge 機制確保此全局 config 被無痛合併
+                await setDoc(configDocRef, {
                     adminSettings: { username: newUsername, password: newPassword }
-                });
+                }, { merge: true });
 
                 closeChangePasswordModal();
-                showToast("管理者帳號與密碼修改成功！新設定已儲存至雲端。", "shield-check");
+                showToast("管理者帳號與密碼修改成功！新設定已儲存至雲端並套用。", "shield-check");
             } catch (err) {
                 console.error(err);
-                showToast("新密碼儲存失敗，請重試。", "alert-triangle");
+                showToast("新密碼儲存失敗：" + err.message, "alert-triangle");
             }
         }
 
@@ -1545,4 +1565,4 @@ ${repairData.description}
         window.showToast = showToast;
     </script>
 </body>
-</html>                      
+</html>
