@@ -1,1 +1,1366 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧校園報修與維護經費管理系統 - 雲端版</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght=300;400;500;700&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col">
 
+    <!-- 導覽列 -->
+    <header class="bg-indigo-900 text-white shadow-lg sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-white p-2 rounded-lg text-indigo-900 shadow">
+                        <i data-lucide="wrench" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="font-bold text-lg block tracking-wide">智慧校園報修系統</span>
+                            <!-- 雲端同步狀態標籤 -->
+                            <div id="cloud-status-badge" class="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-indigo-950/80 border border-indigo-700/60 text-[10px] text-indigo-200">
+                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" id="cloud-status-dot"></span>
+                                <span id="cloud-status-text">連線中...</span>
+                            </div>
+                        </div>
+                        <span class="text-xs text-indigo-200 block -mt-1">總務處經費與維護統計系統 · 雲端同步版</span>
+                    </div>
+                </div>
+                
+                <!-- 頁籤切換 -->
+                <nav class="flex space-x-2 md:space-x-4">
+                    <button onclick="switchTab('report')" id="tab-report" class="tab-btn px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 bg-indigo-800 text-white shadow-inner flex items-center space-x-1">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                        <span>師生報修</span>
+                    </button>
+                    <button onclick="switchTab('search')" id="tab-search" class="tab-btn px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 text-indigo-100 hover:bg-indigo-800 flex items-center space-x-1">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                        <span>進度查詢</span>
+                    </button>
+                    <button onclick="switchTab('admin')" id="tab-admin" class="tab-btn px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 text-indigo-100 hover:bg-indigo-800 flex items-center space-x-1">
+                        <i data-lucide="shield-check" class="w-4 h-4"></i>
+                        <span>管理後台</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- 核心內容區 -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- 師生報修分頁 (report) -->
+        <section id="section-report" class="tab-section block">
+            <div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+                <div class="bg-gradient-to-r from-indigo-700 to-indigo-900 text-white p-6">
+                    <h2 class="text-2xl font-bold flex items-center space-x-2">
+                        <i data-lucide="pen-tool" class="w-6 h-6"></i>
+                        <span>新建報修單</span>
+                    </h2>
+                    <p class="text-indigo-200 text-sm mt-1">請填寫詳細故障狀況，以便總務處維修人員迅速到場處理。</p>
+                </div>
+                <form id="repair-form" onsubmit="handleFormSubmit(event)" class="p-6 sm:p-8 space-y-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <!-- 報修人姓名 -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
+                                <i data-lucide="user" class="w-4 h-4 mr-1 text-slate-400"></i>
+                                <span>報修人姓名 <span class="text-red-500">*</span></span>
+                            </label>
+                            <input type="text" id="reporter" required placeholder="例如：王小明 老師/同學" class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+
+                        <!-- 聯絡電話/分機 -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
+                                <i data-lucide="phone" class="w-4 h-4 mr-1 text-slate-400"></i>
+                                <span>聯絡電話/分機 <span class="text-red-500">*</span></span>
+                            </label>
+                            <input type="text" id="contact" required placeholder="例如：0912-345678 或 #102" class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+
+                        <!-- 學期設定 (動態連動) -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
+                                <i data-lucide="calendar" class="w-4 h-4 mr-1 text-slate-400"></i>
+                                <span>學期 <span class="text-red-500">*</span></span>
+                            </label>
+                            <select id="form-semester" required class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                                <!-- 動態載入 -->
+                            </select>
+                        </div>
+
+                        <!-- 報修類別 -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
+                                <i data-lucide="tag" class="w-4 h-4 mr-1 text-slate-400"></i>
+                                <span>設備類別 <span class="text-red-500">*</span></span>
+                            </label>
+                            <select id="form-category" required class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                                <option value="水電類">水電類（水龍頭、照明、插座等）</option>
+                                <option value="泥作木工類">泥作木工類（門窗、桌椅、地板、天花板）</option>
+                                <option value="資訊設備類">資訊設備（電腦、投影機、網路、麥克風）</option>
+                                <option value="空調冷氣">空調冷氣（冷氣機、通風扇）</option>
+                                <option value="其他">其他類別</option>
+                            </select>
+                        </div>
+
+                        <!-- 報修地點 (動態連動) -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
+                                <i data-lucide="map-pin" class="w-4 h-4 mr-1 text-slate-400"></i>
+                                <span>報修大樓/區域 <span class="text-red-500">*</span></span>
+                            </label>
+                            <select id="form-location" required class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                                <!-- 動態載入 -->
+                            </select>
+                        </div>
+
+                        <!-- 詳細地點/教室編號 -->
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
+                                <i data-lucide="navigation" class="w-4 h-4 mr-1 text-slate-400"></i>
+                                <span>詳細位置/教室號碼 <span class="text-red-500">*</span></span>
+                            </label>
+                            <input type="text" id="detail-location" required placeholder="例如：3F 302教室、辦公室門口" class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                    </div>
+
+                    <!-- 故障詳細描述 -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
+                            <i data-lucide="file-text" class="w-4 h-4 mr-1 text-slate-400"></i>
+                            <span>故障詳細狀況描述 <span class="text-red-500">*</span></span>
+                        </label>
+                        <textarea id="description" required rows="4" placeholder="請詳細描述損壞情形。例如：天花板日光燈管閃爍不亮、水龍頭轉緊後仍不斷滴水..." class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                    </div>
+
+                    <div class="border-t border-slate-100 pt-6 flex justify-end">
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2">
+                            <i data-lucide="check-circle" class="w-5 h-5"></i>
+                            <span>送出報修單</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- 進度查詢分頁 (search) -->
+        <section id="section-search" class="tab-section hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-md border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="relative flex-grow max-w-lg">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                        <i data-lucide="search" class="text-slate-400 w-5 h-5"></i>
+                    </span>
+                    <input type="text" id="search-input" oninput="filterRepairs()" placeholder="輸入報修人姓名、地點或描述進行關鍵字搜尋..." class="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                
+                <!-- 篩選列 -->
+                <div class="flex flex-wrap gap-2">
+                    <select id="filter-semester" onchange="filterRepairs()" class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">所有學期</option>
+                    </select>
+                    <select id="filter-location" onchange="filterRepairs()" class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">所有地點</option>
+                    </select>
+                    <select id="filter-status" onchange="filterRepairs()" class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">所有狀態</option>
+                        <option value="待處理">待處理</option>
+                        <option value="處理中">處理中</option>
+                        <option value="已完成">已完成</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 進度列表卡片 -->
+            <div id="repair-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- 動態載入卡片 -->
+            </div>
+        </section>
+
+        <!-- 管理後台分頁 (admin) -->
+        <section id="section-admin" class="tab-section hidden">
+            <!-- 登入界面卡片 -->
+            <div id="admin-login-card" class="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 p-8 mt-12 block">
+                <div class="text-center mb-8">
+                    <div class="bg-indigo-100 inline-flex p-4 rounded-full text-indigo-700 mb-3">
+                        <i data-lucide="lock" class="w-8 h-8"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-slate-800">總務處管理登入</h2>
+                    <p class="text-slate-400 text-sm mt-1">請輸入專屬管理密碼以使用權限功能</p>
+                </div>
+                <form onsubmit="handleAdminLogin(event)" class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
+                            <i data-lucide="user" class="w-4 h-4 mr-1 text-slate-400"></i>
+                            <span>管理者帳號</span>
+                        </label>
+                        <input type="text" id="login-username" required placeholder="預設：admin" class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
+                            <i data-lucide="key-round" class="w-4 h-4 mr-1 text-slate-400"></i>
+                            <span>密碼</span>
+                        </label>
+                        <input type="password" id="login-password" required placeholder="預設：admin1234" class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-all duration-200 shadow-md flex items-center justify-center space-x-2">
+                        <i data-lucide="log-in" class="w-5 h-5"></i>
+                        <span>登入後台</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- 後台實際內容區 (登入後解鎖) -->
+            <div id="admin-dashboard-content" class="hidden space-y-8">
+                <!-- 後台頂部控制列 -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800 flex items-center space-x-2">
+                            <i data-lucide="shield" class="w-7 h-7 text-indigo-600"></i>
+                            <span>總務處校園報修經費主控台</span>
+                        </h2>
+                        <p class="text-slate-500 text-sm mt-1">負責案件管理、經費登錄與統計、並修改系統設定（學期與地點）。</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <!-- 修改密碼按鈕 -->
+                        <button onclick="openChangePasswordModal()" class="bg-amber-500 hover:bg-amber-600 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow flex items-center space-x-1">
+                            <i data-lucide="key-round" class="w-4 h-4"></i>
+                            <span>🔑 修改雲端密碼</span>
+                        </button>
+                        <!-- 重置展示資料按鈕 -->
+                        <button onclick="resetDemoData()" class="bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow flex items-center space-x-1">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                            <span>重設雲端資料</span>
+                        </button>
+                        <!-- 登出按鈕 -->
+                        <button onclick="handleAdminLogout()" class="bg-slate-600 hover:bg-slate-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow flex items-center space-x-1">
+                            <i data-lucide="log-out" class="w-4 h-4"></i>
+                            <span>登出後台</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 統計儀表板卡片 -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                        <div>
+                            <span class="text-slate-400 text-sm font-medium">總報修件數</span>
+                            <h3 id="stat-total" class="text-3xl font-bold text-slate-800 mt-1">0 件</h3>
+                        </div>
+                        <div class="bg-indigo-100 text-indigo-700 p-3 rounded-xl"><i data-lucide="list" class="w-6 h-6"></i></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                        <div>
+                            <span class="text-slate-400 text-sm font-medium">待維修件數</span>
+                            <h3 id="stat-pending" class="text-3xl font-bold text-red-600 mt-1">0 件</h3>
+                        </div>
+                        <div class="bg-red-100 text-red-700 p-3 rounded-xl"><i data-lucide="alert-circle" class="w-6 h-6"></i></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                        <div>
+                            <span class="text-slate-400 text-sm font-medium">已修復完成</span>
+                            <h3 id="stat-completed" class="text-3xl font-bold text-emerald-600 mt-1">0 件</h3>
+                        </div>
+                        <div class="bg-emerald-100 text-emerald-700 p-3 rounded-xl"><i data-lucide="check-square" class="w-6 h-6"></i></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+                        <div>
+                            <span class="text-slate-400 text-sm font-medium">累計修繕經費</span>
+                            <h3 id="stat-cost" class="text-3xl font-bold text-orange-600 mt-1">NT$ 0</h3>
+                        </div>
+                        <div class="bg-orange-100 text-orange-700 p-3 rounded-xl"><i data-lucide="dollar-sign" class="w-6 h-6"></i></div>
+                    </div>
+                </div>
+
+                <!-- 分割大版面：左維修清單 / 右參數管理 -->
+                <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                    <!-- 左方案件管理列表 (佔寬度 2/3) -->
+                    <div class="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <h3 class="font-bold text-lg text-slate-800 flex items-center space-x-2">
+                                <i data-lucide="clipboard-list" class="w-5 h-5 text-indigo-600"></i>
+                                <span>報修清單及狀態維護</span>
+                            </h3>
+                            <!-- 後台篩選 -->
+                            <div class="flex flex-wrap gap-2 text-xs">
+                                <select id="admin-filter-status" onchange="renderAdminRepairs()" class="px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none">
+                                    <option value="">所有狀態</option>
+                                    <option value="待處理">待處理</option>
+                                    <option value="處理中">處理中</option>
+                                    <option value="已完成">已完成</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 表格區 -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-100/50 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-100">
+                                        <th class="px-6 py-4">報修項目/時間</th>
+                                        <th class="px-6 py-4">地點 & 學期</th>
+                                        <th class="px-6 py-4">狀態</th>
+                                        <th class="px-6 py-4">花費經費 (NT$)</th>
+                                        <th class="px-6 py-4 text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-repairs-table" class="divide-y divide-slate-100 text-sm">
+                                    <!-- 動態載入 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 右方系統設定與修改區域 (佔寬度 1/3) -->
+                    <div class="space-y-6">
+                        <!-- 1. 學期設定管理區 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                            <h3 class="font-bold text-lg text-slate-800 flex items-center space-x-2 mb-4">
+                                <i data-lucide="calendar" class="w-5 h-5 text-indigo-600"></i>
+                                <span>學期參數管理</span>
+                            </h3>
+                            <!-- 新增學期 -->
+                            <div class="flex gap-2 mb-4">
+                                <input type="text" id="new-semester-input" placeholder="例如：115學年度 第二學期" class="flex-grow px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                <button onclick="addSemester()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow flex items-center space-x-1">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                    <span>新增</span>
+                                </button>
+                            </div>
+                            <!-- 已有學期列表 -->
+                            <span class="text-xs font-semibold text-slate-400 block mb-2">現有學期清單：</span>
+                            <div id="semesters-list-container" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                <!-- 動態填入學期項目 -->
+                            </div>
+                        </div>
+
+                        <!-- 2. 報修地點管理區 -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                            <h3 class="font-bold text-lg text-slate-800 flex items-center space-x-2 mb-4">
+                                <i data-lucide="map" class="w-5 h-5 text-indigo-600"></i>
+                                <span>報修地點(大樓)管理</span>
+                            </h3>
+                            <!-- 新增地點 -->
+                            <div class="flex gap-2 mb-4">
+                                <input type="text" id="new-location-input" placeholder="例如：科學大樓、操場" class="flex-grow px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                <button onclick="addLocation()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow flex items-center space-x-1">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                    <span>新增</span>
+                                </button>
+                            </div>
+                            <!-- 已有地點列表 -->
+                            <span class="text-xs font-semibold text-slate-400 block mb-2">現有地點清單：</span>
+                            <div id="locations-list-container" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                <!-- 動態填入地點項目 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="bg-slate-800 text-slate-400 text-center py-6 text-sm border-t border-slate-700">
+        <div class="max-w-7xl mx-auto px-4">
+            <p>© 2026 學校總務處 · 智慧校園報修管理系統 版權所有</p>
+            <p class="text-xs text-slate-500 mt-1">如遇操作問題，請撥打總務處資訊組分機 #100</p>
+        </div>
+    </footer>
+
+    <!-- 全域 Modal 彈窗元件 -->
+    <!-- 1. 修改案件狀態與費用彈窗 -->
+    <div id="status-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform transition-all duration-300">
+            <div class="bg-indigo-900 text-white p-5 flex items-center justify-between">
+                <h4 class="font-bold text-lg flex items-center space-x-2">
+                    <i data-lucide="wrench" class="w-5 h-5"></i>
+                    <span>進度處置與費用登錄</span>
+                </h4>
+                <button onclick="closeStatusModal()" class="text-indigo-200 hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <input type="hidden" id="modal-repair-id">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">處置進度狀態</label>
+                    <select id="modal-status" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                        <option value="待處理">待處理</option>
+                        <option value="處理中">處理中</option>
+                        <option value="已完成">已完成</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">修復花費經費 (NT$)</label>
+                    <input type="number" id="modal-cost" min="0" placeholder="尚未產生經費請輸入 0" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">備註 / 處理說明</label>
+                    <textarea id="modal-note" rows="3" placeholder="例如：已聯絡外包水電於明日來維修、已更換日光燈管等..." class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                </div>
+            </div>
+            <div class="p-5 bg-slate-50 border-t border-slate-100 flex justify-end space-x-2">
+                <button onclick="closeStatusModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-4 py-2 rounded-lg text-sm transition">取消</button>
+                <button onclick="saveStatusChanges()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow-md">儲存設定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 修改密碼彈窗 -->
+    <div id="password-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform transition-all duration-300">
+            <div class="bg-indigo-900 text-white p-5 flex items-center justify-between">
+                <h4 class="font-bold text-lg flex items-center space-x-2">
+                    <i data-lucide="key" class="w-5 h-5"></i>
+                    <span>🔑 修改管理密碼</span>
+                </h4>
+                <button onclick="closeChangePasswordModal()" class="text-indigo-200 hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            <form onsubmit="handlePasswordChange(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">新的管理者帳號</label>
+                    <input type="text" id="new-admin-username" required class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">設定新密碼</label>
+                    <input type="password" id="new-admin-password" required placeholder="請輸入高強度新密碼" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeChangePasswordModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-4 py-2 rounded-lg text-sm transition">取消</button>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition shadow-md">保存新設定</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3. 自訂確認提示對話框 (以取代並禁用原生 confirm) -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform transition-all duration-300">
+            <div class="p-6 text-center">
+                <div class="bg-red-100 text-red-600 inline-flex p-4 rounded-full mb-4" id="confirm-modal-icon-container">
+                    <i data-lucide="alert-triangle" class="w-8 h-8" id="confirm-modal-icon"></i>
+                </div>
+                <h4 class="font-bold text-xl text-slate-800 mb-2" id="confirm-modal-title">確定要執行此操作？</h4>
+                <p class="text-slate-500 text-sm mb-6" id="confirm-modal-message">此動作無法還原，請謹慎確認。</p>
+                <div class="flex justify-center space-x-3">
+                    <button onclick="closeConfirmModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-4 py-2.5 rounded-lg text-sm transition">取消</button>
+                    <button id="confirm-modal-action-btn" onclick="executeConfirmAction()" class="bg-red-600 hover:bg-red-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm transition shadow-md">確定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. 自製提示彈窗 (Toast) -->
+    <div id="custom-toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-2xl z-50 flex items-center space-x-2 transform translate-y-10 opacity-0 pointer-events-none transition-all duration-300">
+        <i id="toast-icon" data-lucide="info" class="w-5 h-5 text-indigo-400"></i>
+        <span id="toast-message" class="font-medium text-sm">提示訊息</span>
+    </div>
+
+    <!-- Javascript 系統雲端整合與核心邏輯 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 初始精美展示數據 (雲端建置初期若為空，將會以此數據初始化雲端)
+        const DEMO_REPAIRS = [
+            { id: "REP001", reporter: "王德明 老師", contact: "分機 #105", semester: "114學年度 第二學期", category: "空調冷氣", location: "教學大樓", detailLocation: "405 教室", description: "冷氣運轉有很大聲的異音，且不冷，吹出有異味的风。", urgency: "普通", status: "待處理", cost: 0, date: "2026-07-08 09:12", note: "" },
+            { id: "REP002", reporter: "李采芬 同學", contact: "0987-123456", semester: "114學年度 第二學期", category: "水電類", location: "活動中心", detailLocation: "一樓 女廁", description: "靠左邊數來第二個洗手台水管破裂，水龍頭打開會一直漏水漏到地板都是。", urgency: "緊急", status: "處理中", cost: 0, date: "2026-07-08 11:30", note: "已先關閉該水龍頭總閥，明早聯絡水電工修復。" },
+            { id: "REP003", reporter: "陳主任", contact: "分機 #201", semester: "114學年度 第一學期", category: "資訊設備類", location: "行政大樓", detailLocation: "三樓大會議室", description: "單槍投影機開機後，顯示畫面嚴重泛黃且偏暗，無法看清投影簡報。", urgency: "普通", status: "已完成", cost: 3500, date: "2026-06-15 14:00", note: "已更換投影機內部全新燈泡，顯示色彩已恢復正常色彩。" }
+        ];
+
+        const DEFAULT_SEMESTERS = ["114學年度 第一學期", "114學年度 第二學期", "115學年度 第一學期"];
+        const DEFAULT_LOCATIONS = ["教學大樓", "行政大樓", "活動中心", "體育館", "宿舍", "圖書館"];
+
+        // 初始化系統狀態與快取
+        let repairs = [];
+        let semesters = [];
+        let locations = [];
+        let adminSettings = { username: "admin", password: "admin1234" };
+        
+        // 記錄全域自訂確認框 Callback 函數
+        let confirmActionCallback = null;
+
+        // 雲端資料庫常數設定 (遵守環境三大鐵律)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'campus-repair-cloud-system';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "demo-api-key",
+            authDomain: "demo-app.firebaseapp.com",
+            projectId: "demo-app",
+            storageBucket: "demo-app.appspot.com",
+            messagingSenderId: "12345678",
+            appId: "1:1234:web:1234"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        let currentUser = null;
+
+        // 頁面載入點
+        window.onload = function() {
+            initCloudSystem();
+            lucide.createIcons();
+        };
+
+        // 雲端狀態UI更新器
+        function updateSyncStatus(text, type = "loading") {
+            const dot = document.getElementById('cloud-status-dot');
+            const textEl = document.getElementById('cloud-status-text');
+            if(!dot || !textEl) return;
+            
+            textEl.textContent = text;
+            dot.className = "w-1.5 h-1.5 rounded-full";
+            
+            if (type === "success") {
+                dot.classList.add("bg-emerald-500");
+            } else if (type === "error") {
+                dot.classList.add("bg-red-500", "animate-pulse");
+            } else {
+                dot.classList.add("bg-amber-500", "animate-pulse");
+            }
+        }
+
+        // 初始化雲端連結與認證機制
+        async function initCloudSystem() {
+            updateSyncStatus("雲端認證中...", "loading");
+            try {
+                // 優先使用自訂認證
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
+                    currentUser = userCredential.user;
+                } else {
+                    const userCredential = await signInAnonymously(auth);
+                    currentUser = userCredential.user;
+                }
+                
+                updateSyncStatus("已連接雲端", "success");
+                // 認證成功後，開始同步資料
+                startRealtimeSync();
+
+                // 判斷當前是否處於登入狀態
+                const isLogged = sessionStorage.getItem('admin_logged_in');
+                if (isLogged === 'true') {
+                    showAdminDashboard();
+                } else {
+                    showAdminLoginCard();
+                }
+            } catch (error) {
+                console.error("雲端連線失敗:", error);
+                updateSyncStatus("雲端斷線", "error");
+                showToast("雲端安全連線失敗，請嘗試刷新網頁", "alert-triangle");
+            }
+        }
+
+        // 即時接收雲端推送的最新資訊 (遵守不使用複雜排序篩選指令之規定，全部於記憶體中篩選)
+        function startRealtimeSync() {
+            if (!currentUser) return;
+
+            // 1. 同步報修案件清單
+            const repairsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'repairs');
+            onSnapshot(repairsCollection, (snapshot) => {
+                repairs = [];
+                snapshot.forEach(docSnap => {
+                    repairs.push({ id: docSnap.id, ...docSnap.data() });
+                });
+                
+                // 由新到舊排序
+                repairs.sort((a, b) => b.date.localeCompare(a.date));
+
+                // 雲端資料庫初始化判定
+                if (repairs.length === 0) {
+                    seedInitialData();
+                } else {
+                    filterRepairs();
+                    if (sessionStorage.getItem('admin_logged_in') === 'true') {
+                        renderAdminDashboard();
+                    }
+                }
+                updateSyncStatus("雲端已同步", "success");
+            }, (error) => {
+                console.error("Repairs Sync Error:", error);
+                updateSyncStatus("同步出錯", "error");
+            });
+
+            // 2. 同步學期設定
+            const semestersDoc = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'semesters');
+            onSnapshot(semestersDoc, (docSnap) => {
+                if (docSnap.exists()) {
+                    semesters = docSnap.data().list || [];
+                } else {
+                    semesters = [...DEFAULT_SEMESTERS];
+                    setDoc(semestersDoc, { list: semesters });
+                }
+                updateFormDropdowns();
+                renderParametersLists();
+            }, (error) => console.error("Semesters Sync Error:", error));
+
+            // 3. 同步報修地點
+            const locationsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'locations');
+            onSnapshot(locationsDoc, (docSnap) => {
+                if (docSnap.exists()) {
+                    locations = docSnap.data().list || [];
+                } else {
+                    locations = [...DEFAULT_LOCATIONS];
+                    setDoc(locationsDoc, { list: locations });
+                }
+                updateFormDropdowns();
+                renderParametersLists();
+            }, (error) => console.error("Locations Sync Error:", error));
+
+            // 4. 同步管理者帳密
+            const adminDoc = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'admin');
+            onSnapshot(adminDoc, (docSnap) => {
+                if (docSnap.exists()) {
+                    adminSettings = docSnap.data();
+                } else {
+                    adminSettings = { username: "admin", password: "admin1234" };
+                    setDoc(adminDoc, adminSettings);
+                }
+            }, (error) => console.error("Admin Sync Error:", error));
+        }
+
+        // 初次導入系統，在雲端資料庫注入預設體驗數據
+        async function seedInitialData() {
+            updateSyncStatus("初始化雲端中...", "loading");
+            try {
+                const repairsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'repairs');
+                for (const item of DEMO_REPAIRS) {
+                    await setDoc(doc(repairsCollection, item.id), item);
+                }
+                
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'semesters'), { list: DEFAULT_SEMESTERS });
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'locations'), { list: DEFAULT_LOCATIONS });
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'admin'), { username: "admin", password: "admin1234" });
+                
+                updateSyncStatus("雲端建置成功", "success");
+            } catch (err) {
+                console.error("Seeding Error:", err);
+            }
+        }
+
+        // 動態刷新所有的學期與地點下拉選單
+        function updateFormDropdowns() {
+            const formSemSelect = document.getElementById('form-semester');
+            if(formSemSelect) {
+                formSemSelect.innerHTML = '';
+                semesters.forEach(sem => {
+                    const opt = document.createElement('option');
+                    opt.value = sem;
+                    opt.textContent = sem;
+                    formSemSelect.appendChild(opt);
+                });
+            }
+
+            const formLocSelect = document.getElementById('form-location');
+            if(formLocSelect) {
+                formLocSelect.innerHTML = '';
+                locations.forEach(loc => {
+                    const opt = document.createElement('option');
+                    opt.value = loc;
+                    opt.textContent = loc;
+                    formLocSelect.appendChild(opt);
+                });
+            }
+
+            const filterSem = document.getElementById('filter-semester');
+            if(filterSem) {
+                const prevSemVal = filterSem.value;
+                filterSem.innerHTML = '<option value="">所有學期</option>';
+                semesters.forEach(sem => {
+                    const opt = document.createElement('option');
+                    opt.value = sem;
+                    opt.textContent = sem;
+                    filterSem.appendChild(opt);
+                });
+                filterSem.value = prevSemVal;
+            }
+
+            const filterLoc = document.getElementById('filter-location');
+            if(filterLoc) {
+                const prevLocVal = filterLoc.value;
+                filterLoc.innerHTML = '<option value="">所有地點</option>';
+                locations.forEach(loc => {
+                    const opt = document.createElement('option');
+                    opt.value = loc;
+                    opt.textContent = loc;
+                    filterLoc.appendChild(opt);
+                });
+                filterLoc.value = prevLocVal;
+            }
+        }
+
+        // 頁籤切換
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-section').forEach(sec => sec.classList.add('hidden'));
+            document.getElementById(`section-${tabId}`).classList.remove('hidden');
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-indigo-800', 'text-white', 'shadow-inner');
+                btn.classList.add('text-indigo-100', 'hover:bg-indigo-800');
+            });
+            
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            activeBtn.classList.remove('text-indigo-100', 'hover:bg-indigo-800');
+            activeBtn.classList.add('bg-indigo-800', 'text-white', 'shadow-inner');
+
+            if (tabId === 'admin' && sessionStorage.getItem('admin_logged_in') === 'true') {
+                renderAdminDashboard();
+            }
+        }
+
+        // 送出報修單 (師生端，上傳至雲端)
+        async function handleFormSubmit(event) {
+            event.preventDefault();
+            if (!currentUser) {
+                showToast("雲端連線異常，暫時無法提交報修！", "alert-triangle");
+                return;
+            }
+
+            const reporter = document.getElementById('reporter').value.trim();
+            const contact = document.getElementById('contact').value.trim();
+            const semester = document.getElementById('form-semester').value;
+            const category = document.getElementById('form-category').value;
+            const location = document.getElementById('form-location').value;
+            const detailLocation = document.getElementById('detail-location').value.trim();
+            const description = document.getElementById('description').value.trim();
+
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            // 生成基於時間戳記的唯一編碼，避免多人同時間提交導致單號碰撞
+            const uniqueId = 'REP' + Date.now().toString().slice(-6);
+
+            const newRepair = {
+                id: uniqueId,
+                reporter,
+                contact,
+                semester,
+                category,
+                location,
+                detailLocation,
+                description,
+                urgency: "普通",
+                status: "待處理",
+                cost: 0,
+                date: dateStr,
+                note: ""
+            };
+
+            updateSyncStatus("上傳雲端...", "loading");
+            try {
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'repairs', uniqueId), newRepair);
+                document.getElementById('repair-form').reset();
+                updateFormDropdowns();
+
+                showToast("雲端報修單送出成功！單號：" + uniqueId, "check-circle");
+                
+                setTimeout(() => {
+                    switchTab('search');
+                    filterRepairs();
+                }, 800);
+            } catch (err) {
+                console.error("Failed to post:", err);
+                showToast("連線異常，上傳失敗", "alert-triangle");
+                updateSyncStatus("連線錯誤", "error");
+            }
+        }
+
+        // 前台進度查詢與過濾
+        function filterRepairs() {
+            const searchInput = document.getElementById('search-input');
+            const searchKeyword = searchInput ? searchInput.value.toLowerCase() : "";
+            const selectedSemester = document.getElementById('filter-semester').value;
+            const selectedLocation = document.getElementById('filter-location').value;
+            const selectedStatus = document.getElementById('filter-status').value;
+
+            const filtered = repairs.filter(item => {
+                const matchesKeyword = item.reporter.toLowerCase().includes(searchKeyword) ||
+                                       item.description.toLowerCase().includes(searchKeyword) ||
+                                       item.detailLocation.toLowerCase().includes(searchKeyword) ||
+                                       item.id.toLowerCase().includes(searchKeyword);
+                
+                const matchesSemester = selectedSemester === "" || item.semester === selectedSemester;
+                const matchesLocation = selectedLocation === "" || item.location === selectedLocation;
+                const matchesStatus = selectedStatus === "" || item.status === selectedStatus;
+
+                return matchesKeyword && matchesSemester && matchesLocation && matchesStatus;
+            });
+
+            renderRepairCards(filtered);
+        }
+
+        // 渲染前台進度卡片
+        function renderRepairCards(list) {
+            const container = document.getElementById('repair-list-container');
+            if(!container) return;
+            container.innerHTML = '';
+
+            if (list.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full py-12 text-center bg-white rounded-2xl shadow-sm border border-slate-100">
+                        <i data-lucide="clipboard" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i>
+                        <p class="text-slate-400">目前沒有找到符合條件的報修項目。</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            list.forEach(item => {
+                let statusClass = "bg-red-50 text-red-700 border-red-100";
+                let statusDot = "bg-red-500";
+                if (item.status === '處理中') {
+                    statusClass = "bg-amber-50 text-amber-700 border-amber-100";
+                    statusDot = "bg-amber-500";
+                } else if (item.status === '已完成') {
+                    statusClass = "bg-emerald-50 text-emerald-700 border-emerald-100";
+                    statusDot = "bg-emerald-500";
+                }
+
+                let categoryIcon = "wrench";
+                if (item.category === '空調冷氣') categoryIcon = "snowflake";
+                if (item.category === '水電類') categoryIcon = "droplet";
+                if (item.category === '泥作木工類') categoryIcon = "hammer";
+                if (item.category === '資訊設備類') categoryIcon = "monitor";
+
+                const cardHtml = `
+                    <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm hover:shadow-md transition-all duration-200 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">${item.id}</span>
+                            <span class="text-xs text-slate-400">${item.date}</span>
+                        </div>
+                        
+                        <div>
+                            <div class="flex items-center space-x-1.5 text-slate-800 font-bold text-base mb-1">
+                                <i data-lucide="${categoryIcon}" class="w-4 h-4 text-indigo-500"></i>
+                                <span>${item.category}</span>
+                            </div>
+                            <p class="text-slate-600 text-sm line-clamp-2 h-10 overflow-hidden text-ellipsis">${item.description}</p>
+                        </div>
+
+                        <div class="border-t border-slate-100 pt-3 space-y-2 text-xs text-slate-500">
+                            <div class="flex justify-between">
+                                <span class="font-medium">學期參數</span>
+                                <span class="text-slate-700">${item.semester}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium">報修大樓</span>
+                                <span class="text-slate-700 font-semibold">${item.location} (${item.detailLocation})</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium">報修人</span>
+                                <span class="text-slate-700">${item.reporter}</span>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-slate-100 pt-3 flex items-center justify-between">
+                            <div class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusClass}">
+                                <span class="w-2.5 h-2.5 rounded-full ${statusDot} animate-pulse"></span>
+                                <span>${item.status}</span>
+                            </div>
+                            ${item.status === '已完成' ? `
+                                <div class="text-right">
+                                    <span class="text-xs text-slate-400 block">修復經費</span>
+                                    <span class="text-sm font-bold text-orange-600">NT$ ${item.cost.toLocaleString()}</span>
+                                </div>
+                            ` : `
+                                <span class="text-xs text-slate-400 italic font-medium text-amber-600">總務處即時同步中</span>
+                            `}
+                        </div>
+
+                        ${item.note ? `
+                            <div class="bg-indigo-50/50 border border-indigo-100 rounded-lg p-2.5 mt-2">
+                                <span class="text-[10px] font-bold text-indigo-600 block uppercase flex items-center space-x-1">
+                                    <i data-lucide="bell" class="w-3 h-3"></i><span>總務處備註：</span>
+                                </span>
+                                <p class="text-slate-600 text-xs mt-0.5">${item.note}</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                container.insertAdjacentHTML('beforeend', cardHtml);
+            });
+
+            lucide.createIcons();
+        }
+
+        // 管理員登入認證
+        function handleAdminLogin(event) {
+            event.preventDefault();
+            const userIn = document.getElementById('login-username').value.trim();
+            const passIn = document.getElementById('login-password').value.trim();
+
+            if (userIn === adminSettings.username && passIn === adminSettings.password) {
+                sessionStorage.setItem('admin_logged_in', 'true');
+                showAdminDashboard();
+                showToast("解鎖登入成功！歡迎使用管理後台。", "unlock");
+            } else {
+                showToast("管理者帳號或密碼輸入錯誤，請再試一次。", "alert-triangle");
+            }
+        }
+
+        // 手動安全登出
+        function handleAdminLogout() {
+            sessionStorage.removeItem('admin_logged_in');
+            showAdminLoginCard();
+            showToast("已成功登出管理系統並收回操作權限。", "lock");
+        }
+
+        // 切換顯示：登入介面
+        function showAdminLoginCard() {
+            document.getElementById('admin-login-card').style.display = 'block';
+            document.getElementById('admin-dashboard-content').style.display = 'hidden';
+            document.getElementById('admin-dashboard-content').classList.add('hidden');
+        }
+
+        // 切換顯示：登入後的主控台
+        function showAdminDashboard() {
+            document.getElementById('admin-login-card').style.display = 'none';
+            document.getElementById('admin-dashboard-content').classList.remove('hidden');
+            renderAdminDashboard();
+        }
+
+        // 渲染整個後台數據 (統計數據 + 列表表格 + 參數管理)
+        function renderAdminDashboard() {
+            let total = repairs.length;
+            let pending = repairs.filter(r => r.status === '待處理').length;
+            let completed = repairs.filter(r => r.status === '已完成').length;
+            let totalCost = repairs.reduce((sum, item) => sum + Number(item.cost || 0), 0);
+
+            document.getElementById('stat-total').textContent = `${total} 件`;
+            document.getElementById('stat-pending').textContent = `${pending} 件`;
+            document.getElementById('stat-completed').textContent = `${completed} 件`;
+            document.getElementById('stat-cost').textContent = `NT$ ${totalCost.toLocaleString()}`;
+
+            renderParametersLists();
+            renderAdminRepairs();
+        }
+
+        // 渲染參數管理列表 (右側欄)
+        function renderParametersLists() {
+            const semContainer = document.getElementById('semesters-list-container');
+            if(semContainer) {
+                semContainer.innerHTML = '';
+                semesters.forEach((sem, idx) => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = "flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm shadow-sm";
+                    itemDiv.innerHTML = `
+                        <span class="text-slate-700 font-medium">${sem}</span>
+                        <button onclick="deleteSemester(${idx})" class="text-slate-400 hover:text-red-500 transition" title="刪除學期">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    `;
+                    semContainer.appendChild(itemDiv);
+                });
+            }
+
+            const locContainer = document.getElementById('locations-list-container');
+            if(locContainer) {
+                locContainer.innerHTML = '';
+                locations.forEach((loc, idx) => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = "flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm shadow-sm";
+                    itemDiv.innerHTML = `
+                        <span class="text-slate-700 font-medium">${loc}</span>
+                        <button onclick="deleteLocation(${idx})" class="text-slate-400 hover:text-red-500 transition" title="刪除地點">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    `;
+                    locContainer.appendChild(itemDiv);
+                });
+            }
+
+            lucide.createIcons();
+        }
+
+        // 新增學期功能 (同步至雲端)
+        async function addSemester() {
+            const input = document.getElementById('new-semester-input');
+            const newSem = input.value.trim();
+            if (!newSem) {
+                showToast("請輸入欲新增的學期名稱！", "alert-circle");
+                return;
+            }
+            if (semesters.includes(newSem)) {
+                showToast("該學期名稱已存在！", "alert-triangle");
+                return;
+            }
+
+            updateSyncStatus("更新雲端學期...", "loading");
+            try {
+                const updatedList = [...semesters, newSem];
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'semesters'), { list: updatedList });
+                input.value = '';
+                showToast(`已成功新增學期設定！`, "check-circle");
+            } catch(err) {
+                showToast("雲端寫入失敗", "alert-triangle");
+            }
+        }
+
+        // 刪除學期功能
+        async function deleteSemester(index) {
+            const targetSem = semesters[index];
+            const isUsed = repairs.some(r => r.semester === targetSem);
+            if (isUsed) {
+                showToast(`無法刪除！已有報修案件歸屬於「${targetSem}」。`, "alert-triangle");
+                return;
+            }
+
+            updateSyncStatus("刪除雲端學期...", "loading");
+            try {
+                const updatedList = [...semesters];
+                updatedList.splice(index, 1);
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'semesters'), { list: updatedList });
+                showToast("已成功移除該學期設定。", "trash");
+            } catch(err) {
+                showToast("雲端刪除失敗", "alert-triangle");
+            }
+        }
+
+        // 新增報修地點功能 (同步至雲端)
+        async function addLocation() {
+            const input = document.getElementById('new-location-input');
+            const newLoc = input.value.trim();
+            if (!newLoc) {
+                showToast("請輸入欲新增的地點名稱！", "alert-circle");
+                return;
+            }
+            if (locations.includes(newLoc)) {
+                showToast("該地點/大樓名稱已存在！", "alert-triangle");
+                return;
+            }
+
+            updateSyncStatus("更新雲端地點...", "loading");
+            try {
+                const updatedList = [...locations, newLoc];
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'locations'), { list: updatedList });
+                input.value = '';
+                showToast(`已成功新增地點！`, "check-circle");
+            } catch(err) {
+                showToast("雲端寫入失敗", "alert-triangle");
+            }
+        }
+
+        // 刪除報修地點功能
+        async function deleteLocation(index) {
+            const targetLoc = locations[index];
+            const isUsed = repairs.some(r => r.location === targetLoc);
+            if (isUsed) {
+                showToast(`無法刪除！已有報修案件發生在「${targetLoc}」。`, "alert-triangle");
+                return;
+            }
+
+            updateSyncStatus("刪除雲端地點...", "loading");
+            try {
+                const updatedList = [...locations];
+                updatedList.splice(index, 1);
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'locations'), { list: updatedList });
+                showToast("已成功移除該地點大樓設定。", "trash");
+            } catch(err) {
+                showToast("雲端刪除失敗", "alert-triangle");
+            }
+        }
+
+        // 渲染管理後台的維修管理表格
+        function renderAdminRepairs() {
+            const filterSelect = document.getElementById('admin-filter-status');
+            const filterVal = filterSelect ? filterSelect.value : "";
+            const tbody = document.getElementById('admin-repairs-table');
+            if(!tbody) return;
+            tbody.innerHTML = '';
+
+            const filtered = repairs.filter(r => filterVal === "" || r.status === filterVal);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-slate-400">
+                            沒有對應狀態的報修表單資料。
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            filtered.forEach(item => {
+                let statusBadge = '';
+                if (item.status === '待處理') {
+                    statusBadge = `<span class="bg-red-100 text-red-800 text-xs px-2.5 py-1 rounded-full font-medium inline-flex items-center"><span class="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>待處理</span>`;
+                } else if (item.status === '處理中') {
+                    statusBadge = `<span class="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-medium inline-flex items-center"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>處理中</span>`;
+                } else if (item.status === '已完成') {
+                    statusBadge = `<span class="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-1 rounded-full font-medium inline-flex items-center"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>已完成</span>`;
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition duration-150";
+                tr.innerHTML = `
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-slate-800 flex items-center">
+                            <span class="bg-slate-100 text-slate-700 font-mono text-xs px-1.5 py-0.5 rounded mr-1.5">${item.id}</span>
+                            <span>${item.category}</span>
+                        </div>
+                        <div class="text-xs text-slate-400 mt-1">報修時間：${item.date}</div>
+                        <p class="text-xs text-slate-500 mt-1.5 font-normal max-w-sm overflow-hidden text-ellipsis whitespace-nowrap" title="${item.description}">
+                            詳情：${item.description}
+                        </p>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="font-semibold text-slate-700">${item.location} <span class="font-normal text-xs text-slate-500">(${item.detailLocation})</span></div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">${item.semester}</div>
+                        <div class="text-xs text-slate-500 mt-1">申報人：${item.reporter} (${item.contact})</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        ${statusBadge}
+                    </td>
+                    <td class="px-6 py-4 font-bold text-slate-700 text-right pr-12">
+                        ${item.status === 'True' || item.status === '已完成' ? `NT$ ${Number(item.cost).toLocaleString()}` : '<span class="text-xs text-slate-400 italic font-normal">待登錄</span>'}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex items-center justify-center space-x-2">
+                            <button onclick="openStatusModal('${item.id}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold px-2.5 py-1.5 rounded-lg text-xs transition duration-150 inline-flex items-center space-x-1">
+                                <i data-lucide="edit" class="w-3.5 h-3.5"></i>
+                                <span>設定</span>
+                            </button>
+                            <button onclick="confirmDeleteRepair('${item.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 font-semibold px-2.5 py-1.5 rounded-lg text-xs transition duration-150 inline-flex items-center space-x-1" title="刪除此報修單">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                <span>刪除</span>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            lucide.createIcons();
+        }
+
+        // 開啟變更狀態與金額 Modal
+        function openStatusModal(id) {
+            const item = repairs.find(r => r.id === id);
+            if (!item) return;
+
+            document.getElementById('modal-repair-id').value = id;
+            document.getElementById('modal-status').value = item.status;
+            document.getElementById('modal-cost').value = item.cost || 0;
+            document.getElementById('modal-note').value = item.note || "";
+
+            const modal = document.getElementById('status-modal');
+            modal.classList.remove('hidden');
+        }
+
+        // 關閉變更狀態與金額 Modal
+        function closeStatusModal() {
+            document.getElementById('status-modal').classList.add('hidden');
+        }
+
+        // 儲存狀態及修繕金額設定 (同步至雲端)
+        async function saveStatusChanges() {
+            const id = document.getElementById('modal-repair-id').value;
+            const status = document.getElementById('modal-status').value;
+            const cost = Number(document.getElementById('modal-cost').value) || 0;
+            const note = document.getElementById('modal-note').value.trim();
+
+            updateSyncStatus("儲存中...", "loading");
+            try {
+                const repairDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'repairs', id);
+                await updateDoc(repairDocRef, {
+                    status: status,
+                    cost: status === '已完成' ? cost : 0,
+                    note: note
+                });
+                
+                closeStatusModal();
+                showToast(`已成功同步單號 ${id} 的進度與經費！`, "check");
+            } catch (err) {
+                console.error("更新故障:", err);
+                showToast("連線故障，無法更新資料", "alert-triangle");
+            }
+        }
+
+        // 開啟密碼設定彈窗
+        function openChangePasswordModal() {
+            document.getElementById('new-admin-username').value = adminSettings.username;
+            document.getElementById('new-admin-password').value = "";
+            document.getElementById('password-modal').classList.remove('hidden');
+        }
+
+        // 關閉密碼設定彈窗
+        function closeChangePasswordModal() {
+            document.getElementById('password-modal').classList.add('hidden');
+        }
+
+        // 提交修改管理者帳密 (同步至雲端)
+        async function handlePasswordChange(event) {
+            event.preventDefault();
+            const newUsername = document.getElementById('new-admin-username').value.trim();
+            const newPassword = document.getElementById('new-admin-password').value.trim();
+
+            if (!newUsername || !newPassword) {
+                showToast("帳號與新密碼欄位不可為空值！", "alert-triangle");
+                return;
+            }
+
+            updateSyncStatus("修改認證...", "loading");
+            try {
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'admin'), {
+                    username: newUsername,
+                    password: newPassword
+                });
+                closeChangePasswordModal();
+                showToast("管理者帳密已變更，且全平台雲端同步成功！", "shield-check");
+            } catch (err) {
+                showToast("雲端帳密儲存失敗", "alert-triangle");
+            }
+        }
+
+        // 開啟自訂確認彈窗
+        function showConfirmModal(title, message, onConfirm, isDanger = true) {
+            document.getElementById('confirm-modal-title').textContent = title;
+            document.getElementById('confirm-modal-message').textContent = message;
+            
+            const iconContainer = document.getElementById('confirm-modal-icon-container');
+            const actionBtn = document.getElementById('confirm-modal-action-btn');
+            const icon = document.getElementById('confirm-modal-icon');
+
+            if (isDanger) {
+                iconContainer.className = "bg-red-100 text-red-600 inline-flex p-4 rounded-full mb-4";
+                actionBtn.className = "bg-red-600 hover:bg-red-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm transition shadow-md";
+                icon.setAttribute('data-lucide', 'alert-triangle');
+            } else {
+                iconContainer.className = "bg-indigo-100 text-indigo-600 inline-flex p-4 rounded-full mb-4";
+                actionBtn.className = "bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg text-sm transition shadow-md";
+                icon.setAttribute('data-lucide', 'info');
+            }
+
+            confirmActionCallback = onConfirm;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        // 關閉自訂確認彈窗
+        function closeConfirmModal() {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            confirmActionCallback = null;
+        }
+
+        // 執行確認的回調函數
+        function executeConfirmAction() {
+            if (confirmActionCallback) {
+                confirmActionCallback();
+            }
+            closeConfirmModal();
+        }
+
+        // 觸發報修案件刪除確認
+        function confirmDeleteRepair(id) {
+            showConfirmModal(
+                "確定要刪除此報修單？",
+                `您即將永久刪除雲端報修單：${id}。此操作包含所有的處理歷史與經費紀錄將全數移除，且所有連線裝置將同步被刪除！`,
+                () => {
+                    deleteRepair(id);
+                },
+                true
+            );
+        }
+
+        // 真正執行刪除邏輯
+        async function deleteRepair(id) {
+            updateSyncStatus("刪除中...", "loading");
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'repairs', id));
+                showToast(`已成功移除雲端報修單：${id}`, "trash-2");
+            } catch (err) {
+                showToast("雲端刪除失敗", "alert-triangle");
+            }
+        }
+
+        // 重置為預設展示數據
+        async function resetDemoData() {
+            showConfirmModal(
+                "確定要重置雲端資料嗎？",
+                "此動作會一併清除雲端上的所有客製大樓、自訂學期，並恢復最初的三筆展示單據。本操作無法還原，且多個網頁將同步重新配置。確定執行？",
+                async () => {
+                    updateSyncStatus("清空雲端資料中...", "loading");
+                    try {
+                        // 讀取並清空雲端上的現有案件
+                        const repairsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'repairs');
+                        const querySnapshot = await getDocs(repairsCollection);
+                        const deletePromises = [];
+                        querySnapshot.forEach(docSnap => {
+                            deletePromises.push(deleteDoc(docSnap.ref));
+                        });
+                        await Promise.all(deletePromises);
+
+                        // 重新置入初始範例
+                        await seedInitialData();
+                        showToast("雲端資料已重置為最初展示狀態！", "refresh-cw");
+                    } catch (error) {
+                        console.error(error);
+                        showToast("雲端資料重置失敗", "alert-triangle");
+                    }
+                },
+                true
+            );
+        }
+
+        // 自製精美 Toast 提示
+        let toastTimeout;
+        function showToast(message, iconName = "info") {
+            const toast = document.getElementById('custom-toast');
+            const toastMsg = document.getElementById('toast-message');
+            const toastIcon = document.getElementById('toast-icon');
+
+            if(!toast || !toastMsg || !toastIcon) return;
+
+            toastMsg.textContent = message;
+            toastIcon.setAttribute('data-lucide', iconName);
+            lucide.createIcons();
+
+            // 滑出動畫
+            toast.classList.remove('translate-y-10', 'opacity-0', 'pointer-events-none');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 3500);
+        }
+
+        // 將所有可能在 HTML 事件中呼叫的函數，全部綁定至全域 window，解決模組作用域限制問題
+        window.switchTab = switchTab;
+        window.handleFormSubmit = handleFormSubmit;
+        window.filterRepairs = filterRepairs;
+        window.handleAdminLogin = handleAdminLogin;
+        window.handleAdminLogout = handleAdminLogout;
+        window.addSemester = addSemester;
+        window.deleteSemester = deleteSemester;
+        window.addLocation = addLocation;
+        window.deleteLocation = deleteLocation;
+        window.openStatusModal = openStatusModal;
+        window.closeStatusModal = closeStatusModal;
+        window.saveStatusChanges = saveStatusChanges;
+        window.openChangePasswordModal = openChangePasswordModal;
+        window.closeChangePasswordModal = closeChangePasswordModal;
+        window.handlePasswordChange = handlePasswordChange;
+        window.closeConfirmModal = closeConfirmModal;
+        window.executeConfirmAction = executeConfirmAction;
+        window.confirmDeleteRepair = confirmDeleteRepair;
+        window.resetDemoData = resetDemoData;
+    </script>
+</body>
+</html>
